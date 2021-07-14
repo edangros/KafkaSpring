@@ -1,4 +1,4 @@
-package com.inspien.kafka.connect;
+package com.inspien.kafka.connect.error;
 
 public class ConnectionKeyException extends RuntimeException{
     public ConnectionKeyException(String message){
