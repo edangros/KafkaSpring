@@ -72,7 +72,7 @@ public class RESTInputSourceTask extends SourceTask implements ILoadBalancable {
                 break;
         }
         //register to lb
-        lb = RESTContextRegistry.getInstance().taskLoadBalancer(connectionId);
+        lb = RESTContextManager.getInstance().taskLoadBalancer(connectionId);
         lb.register(this);
     }
 
@@ -115,7 +115,7 @@ public class RESTInputSourceTask extends SourceTask implements ILoadBalancable {
     }
 
     @Override
-    public int loadScore() {
+    public synchronized int loadScore() {
         switch(this.countOption){
             case BY_MSG_COUNT:
                 return this.bufferCnt;

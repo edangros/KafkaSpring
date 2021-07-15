@@ -3,6 +3,8 @@ package com.inspien.kafka.connect;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+import com.inspien.kafka.connect.error.NoTaskException;
+
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.connect.source.SourceTask;
 
@@ -25,7 +27,7 @@ public class TaskLoadBalancer implements ILoadBalancer<RESTInputSourceTask>{
         this.name = config.getString(RESTSyncConnector.CONNECTION_ID);
         this.tasks = new HashMap<>();
         log.info("Load Balancer for {} is activated",this.name);
-        RESTContextRegistry.getInstance().registerLB(this.name, this);
+        RESTContextManager.getInstance().registerLB(this.name, this);
     }
 
     @Override
