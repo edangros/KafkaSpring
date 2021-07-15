@@ -10,7 +10,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import com.inspien.kafka.connect.RESTContextRegistry;
+import com.inspien.kafka.connect.RESTContextManager;
 import com.inspien.kafka.connect.RESTInputSourceTask;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -24,13 +24,7 @@ import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.util.ConnectUtils;
-import org.springframework.beans.BeansException;
-import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.ApplicationContextAware;
-import org.springframework.context.ApplicationListener;
-import org.springframework.context.SmartLifecycle;
-import org.springframework.context.event.ContextStoppedEvent;
 import org.springframework.kafka.KafkaException;
 import org.springframework.kafka.listener.BatchMessageListener;
 import org.springframework.kafka.listener.GenericMessageListenerContainer;
@@ -64,9 +58,6 @@ public class ReplyingKafkaConnectTemplate implements BatchMessageListener<byte[]
     private final String connectionID;
     private TaskScheduler scheduler = new ThreadPoolTaskScheduler();
 
-    private int phase;
-
-    private boolean autoStartup = true;
 
     private long replyTimeout;
 
@@ -142,12 +133,15 @@ public class ReplyingKafkaConnectTemplate implements BatchMessageListener<byte[]
         callback.run();
     }
 
+    public SettableListenableFuture<SinkRecord> sendAndReceive(SourceRecord record) {
+        return sendAndReceive(record, Duration.ofMillis(this.replyTimeout));
+    }
     public SettableListenableFuture<SinkRecord> sendAndReceive(SourceRecord record, Duration replyTimeout) {
         Assert.state(this.running, "Template has not been started"); // NOSONAR (sync)
         CorrelationKey correlationId = createCorrelationId(record);
         Assert.notNull(correlationId, "the created 'correlationId' cannot be null");
         record.headers().add(KafkaHeaders.CORRELATION_ID,
-                            Base64Utils.encode(correlationId.getCorrelationId()),
+                            correlationId.getCorrelationId(),
                             Schema.STRING_SCHEMA);
         if (log.isDebugEnabled()) {
             log.debug("Sending: " + record + " with correlationId: " + correlationId);
@@ -156,7 +150,7 @@ public class ReplyingKafkaConnectTemplate implements BatchMessageListener<byte[]
         this.futures.put(correlationId, future);
         
         //access to lb, then get best task
-        RESTInputSourceTask task = RESTContextRegistry.getInstance().taskLoadBalancer(connectionID).getAppropriate();
+        RESTInputSourceTask task = RESTContextManager.getInstance().taskLoadBalancer(connectionID).getAppropriate();
 
         try {
             task.put(record);
