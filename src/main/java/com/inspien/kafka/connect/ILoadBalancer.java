@@ -8,7 +8,7 @@ public interface ILoadBalancer<T extends ILoadBalancable> {
 
     /**
      * register object to loadbalancer
-     * @param object object pointer which could consume data.
+     * @param object object reference which could consume data.
      */
     public void register(T object);
 

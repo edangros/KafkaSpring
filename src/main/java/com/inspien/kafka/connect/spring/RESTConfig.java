@@ -3,25 +3,21 @@ package com.inspien.kafka.connect.spring;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.inspien.kafka.connect.RESTContextRegistry;
-import com.inspien.kafka.connect.RESTContextRegistry.SchemaType;
+import com.inspien.kafka.connect.RESTContextManager;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.config.AbstractConfig;
-import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.runtime.SourceConnectorConfig;
-import org.apache.kafka.connect.source.SourceRecord;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
-import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.KafkaMessageListenerContainer;
-import org.springframework.lang.Nullable;
 
+//TODO this class will be removed and only application and template will remain. Transfer all the instancing procedure into application.
 /**
  * Config of REST API, generated using properties passed by {@link SpringAPIHandler}.
  */
@@ -53,13 +49,12 @@ public class RESTConfig {
     
     /**
      * Receive Config data from Registry.
-     * @return {@link SourceConnectorConfig} of mother connector, stored in {@link RESTContextRegistry}
+     * @return {@link SourceConnectorConfig} of mother connector, stored in {@link RESTContextManager}
      */
     @Bean
     public AbstractConfig connectorConfig() {
-        return RESTContextRegistry.getInstance().getConnectorConfig(connectionId);
+        return RESTContextManager.getInstance().getConnectorConfig(connectionId);
     }
-
     /*
     //we do not need TransformChain now
     private TransformationChain<SourceRecord> transformationChain;
@@ -116,7 +111,6 @@ public class RESTConfig {
     public Map<String, Object> consumerConfigs() {
         Map<String, Object> consumerProps = new HashMap<>();
         consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "helloworld");
         consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, connectionId+consumerGroupSuffix);
         consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
@@ -146,15 +140,4 @@ public class RESTConfig {
     public ConsumerFactory<byte[], byte[]> consumerFactory() {
         return new DefaultKafkaConsumerFactory<>(consumerConfigs());
     }
-
-    @Bean @Nullable
-    public Schema webRequestSchema(){
-        return RESTContextRegistry.getInstance().getSchema(connectionId, SchemaType.WEB_REQUEST);
-    }
-
-    @Bean @Nullable
-    public Schema kafkaRequestSchema(){
-        return RESTContextRegistry.getInstance().getSchema(connectionId, SchemaType.KAFKA_REQUEST);
-    }
-
 }

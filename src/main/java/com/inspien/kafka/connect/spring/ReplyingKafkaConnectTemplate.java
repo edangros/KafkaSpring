@@ -67,8 +67,6 @@ public class ReplyingKafkaConnectTemplate implements BatchMessageListener<byte[]
 
     private JsonConverter converter;
 
-    private ApplicationContext applicationContext;
-
     public ReplyingKafkaConnectTemplate(GenericMessageListenerContainer<byte[], byte[]> container, String connectionId, long replyTimeout) {
         Assert.notNull(container, "'replyContainer' cannot be null");
         this.replyContainer = container;

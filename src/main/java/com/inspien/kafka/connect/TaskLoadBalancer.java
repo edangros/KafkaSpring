@@ -21,8 +21,12 @@ public class TaskLoadBalancer implements ILoadBalancer<RESTInputSourceTask>{
 
     private HashMap<RESTInputSourceTask, Integer> tasks;
     private String name;
-    private RESTInputSourceTask appropriateItem;
+    private RESTInputSourceTask targetTask;
 
+    /**
+     * Generate TaskLoadBalancer with configuration. 
+     * @param config configuration of the load balancer. Connector's config could be directly passed.
+     */
     public TaskLoadBalancer(AbstractConfig config){
         this.name = config.getString(RESTSyncConnector.CONNECTION_ID);
         this.tasks = new HashMap<>();
@@ -30,13 +34,14 @@ public class TaskLoadBalancer implements ILoadBalancer<RESTInputSourceTask>{
         RESTContextManager.getInstance().registerLB(this.name, this);
     }
 
+    
     @Override
     public void register(RESTInputSourceTask object) {
         if (tasks.keySet().contains(object)){
             log.warn("Task {} is already registered in loadbalancer. Just update loadbalancer", object.hashCode());
         }
         this.tasks.put(object, object.loadScore());
-        if ((this.appropriateItem == null) || (this.tasks.get(this.appropriateItem) > object.loadScore())) this.appropriateItem = object;
+        if ((this.targetTask == null) || (this.tasks.get(this.targetTask) > object.loadScore())) this.targetTask = object;
     }
 
     @Override
@@ -46,27 +51,32 @@ public class TaskLoadBalancer implements ILoadBalancer<RESTInputSourceTask>{
         this.tasks.remove(member);
         log.trace("Task {} is unloaded from loadbalancer", member.hashCode());
         //readdress appropriate member
-        if (!this.appropriateItem.equals(member)){
+        if (this.targetTask.equals(member)){
             this.readdress();
         }
     }
 
+    /**
+     * accumulate loads of each task, and find the task with lowest load
+     */
     private void readdress(){
+        //if no item left, set to null
+        if(this.tasks.size() <= 0) this.targetTask = null;
         int lowest = Integer.MAX_VALUE;
         for (RESTInputSourceTask task : new ArrayList<RESTInputSourceTask>(tasks.keySet())){
             if (this.tasks.get(task) <= lowest){
                 lowest = this.tasks.get(task);
-                this.appropriateItem = task;
+                this.targetTask = task;
             }
         }
     }
 
     @Override
     public RESTInputSourceTask getAppropriate() {
-        if (this.appropriateItem == null){
+        if (this.targetTask == null){
             throw new NoTaskException("no task is registered in loadbalancer. Try wait tasks to ready");
         }
-        return this.appropriateItem;
+        return this.targetTask;
     }
 
     @Override
@@ -76,6 +86,6 @@ public class TaskLoadBalancer implements ILoadBalancer<RESTInputSourceTask>{
             return;
         }
         this.tasks.put(member, newscore);
-        if (this.tasks.get(this.appropriateItem) > newscore) this.appropriateItem = member;
+        if (this.tasks.get(this.targetTask) > newscore) this.targetTask = member;
     }    
 }

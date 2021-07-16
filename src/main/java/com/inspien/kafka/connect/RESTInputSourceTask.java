@@ -74,6 +74,7 @@ public class RESTInputSourceTask extends SourceTask implements ILoadBalancable {
         //register to lb
         lb = RESTContextManager.getInstance().taskLoadBalancer(connectionId);
         lb.register(this);
+
     }
 
     /**
