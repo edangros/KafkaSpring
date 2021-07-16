@@ -1,4 +1,4 @@
-package com.inspien.kafka.connect.spring;
+package com.inspien.kafka.connect;
 
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -9,9 +9,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-
-import com.inspien.kafka.connect.RESTContextManager;
-import com.inspien.kafka.connect.RESTInputSourceTask;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
@@ -24,7 +21,6 @@ import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.util.ConnectUtils;
-import org.springframework.context.ApplicationContext;
 import org.springframework.kafka.KafkaException;
 import org.springframework.kafka.listener.BatchMessageListener;
 import org.springframework.kafka.listener.GenericMessageListenerContainer;
@@ -33,7 +29,6 @@ import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.util.Assert;
-import org.springframework.util.Base64Utils;
 import org.springframework.util.concurrent.SettableListenableFuture;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.requestreply.ReplyingKafkaTemplate;
@@ -44,7 +39,7 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * The counterpart of Spring-Kafka's {@link KafkaTemplate} and {@link ReplyingKafkaTemplate} which uses {@link SourceTask}s instead of {@link Producer}s.
- * But runs out of Spring's boundary, to 
+ * But runs out of Spring's boundary, managed by {@link RESTContextManager} to generate task for each specific connection.
  */
 @Slf4j
 public class ReplyingKafkaConnectTemplate implements BatchMessageListener<byte[], byte[]> {
@@ -100,7 +95,7 @@ public class ReplyingKafkaConnectTemplate implements BatchMessageListener<byte[]
         return this.replyContainer.getAssignedPartitions();
     }
 
-    public void afterPropertiesSet() throws Exception {
+    public void initializeScheduler(){
         if (!this.schedulerSet) {
             ((ThreadPoolTaskScheduler) this.scheduler).initialize();
         }
@@ -109,7 +104,7 @@ public class ReplyingKafkaConnectTemplate implements BatchMessageListener<byte[]
     public synchronized void start() {
         if (!this.running) {
             try {
-                afterPropertiesSet();
+                initializeScheduler();
             } catch (Exception e) {
                 throw new KafkaException("Failed to initialize", e);
             }
