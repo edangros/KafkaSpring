@@ -2,7 +2,8 @@ plugins {
 	id 'org.springframework.boot' version '2.5.2'
 	id 'io.spring.dependency-management' version '1.0.11.RELEASE'
     id "io.freefair.lombok" version "6.0.0-m2"
-	id 'java'
+    id 'distribution'
+	id 'java-library'
 }
 
 group = 'com.inspien.kafka.connect'
@@ -39,7 +40,13 @@ dependencies {
     compileOnly group: 'org.apache.kafka', name: 'kafka-clients', version: '2.8.0'
     compileOnly group: 'org.apache.kafka', name: 'connect-transforms', version: '2.8.0'
 }
-
-test {
-	useJUnitPlatform()
+distributions {
+    main {
+        contents {
+            from jar
+            into ('lib'){
+                from (configurations.runtimeClasspath)
+            }
+        }
+    }
 }
