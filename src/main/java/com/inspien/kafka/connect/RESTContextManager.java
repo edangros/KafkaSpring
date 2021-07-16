@@ -1,24 +1,17 @@
 package com.inspien.kafka.connect;
 
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Consumer;
 
 import com.inspien.kafka.connect.spring.RESTApplication;
-import com.inspien.kafka.connect.spring.ReplyingKafkaConnectTemplate;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.protocol.types.SchemaException;
 import org.apache.kafka.connect.data.Schema;
-import org.springframework.boot.ExitCodeGenerator;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.KafkaMessageListenerContainer;
@@ -132,6 +125,7 @@ public class RESTContextManager {
     
     public void deregisterConnector(String key){
         this.contexts.remove(key);
+        this.taskLoadBalancer(key).close();
         this.removeTemplate(key);
         //if there are no connector, close webserver.
         if (this.contexts.size() <= 0){

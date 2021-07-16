@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import com.inspien.kafka.connect.error.TaskBufferFullException;
+
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
 import org.apache.tomcat.util.collections.SynchronizedQueue;
@@ -74,7 +76,7 @@ public class RESTInputSourceTask extends SourceTask implements ILoadBalancable {
         //register to lb
         lb = RESTContextManager.getInstance().taskLoadBalancer(connectionId);
         lb.register(this);
-
+        log.info("task {} is successfully created and registered in loadbalancer",this.name);
     }
 
     /**
@@ -88,6 +90,7 @@ public class RESTInputSourceTask extends SourceTask implements ILoadBalancable {
         //For LB access, send single message per single buffer polling.
         SourceRecord record = this.buffer.poll();
         if (record != null){
+            log.trace("task {} is polling que", this.name);
             records.add(record);
             this.bufferCnt -= 1;
             this.bufferSize -= record.toString().getBytes().length;
@@ -97,7 +100,7 @@ public class RESTInputSourceTask extends SourceTask implements ILoadBalancable {
 
     @Override
     public void stop() {
-        log.trace("Stopping");
+        log.trace("{} is Stopping",this.name);
         synchronized (this) {
             // deregister this from lb
             this.lb.deregister(this);

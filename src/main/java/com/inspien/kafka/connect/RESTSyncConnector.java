@@ -93,9 +93,6 @@ public class RESTSyncConnector extends SourceConnector {
     private String webRequestSchemaPolicy;
     private String kafkaRequestSchemaPolicy;
     private String kafkaResponseSchemaPolicy;
-    private String requestTopicSuffix;
-    private String responseTopicSuffix;
-    private int webPort;
     private JsonConverter converter;
     @Override
     public String version() {
@@ -106,11 +103,10 @@ public class RESTSyncConnector extends SourceConnector {
     public void start(Map<String, String> props) {
         AbstractConfig parsedConfig = new AbstractConfig(CONFIG_DEF, props);
         this.connectionId = parsedConfig.getString(CONNECTION_ID);
-        this.requestTopicSuffix = parsedConfig.getString(REQUEST_TOPIC_SUFFIX);
-        this.responseTopicSuffix = parsedConfig.getString(RESPONSE_TOPIC_SUFFIX);
         this.lbScoringMethod = parsedConfig.getString(LOADBALANCER_SCORING);
         this.webRequestSchemaPolicy = parsedConfig.getString(SCHEMAPOLICY_WEBREQUEST);
         this.kafkaRequestSchemaPolicy = parsedConfig.getString(SCHEMAPOLICY_KAFKAREQUEST);
+        this.kafkaResponseSchemaPolicy = parsedConfig.getString(SCHEMAPOLICY_KAFKARESPONSE);
         //generate converter
         Map<String,Object> converterProps = new HashMap<>();
         converterProps.put(JsonConverterConfig.DECIMAL_FORMAT_CONFIG, DecimalFormat.BASE64.name());
@@ -197,19 +193,11 @@ public class RESTSyncConnector extends SourceConnector {
     }
     
 
-    public Map<String, Object> webConfigs() {
-        Map<String, Object> config = new HashMap<>();
-        config.put(REQUEST_TOPIC_SUFFIX, requestTopicSuffix);
-        config.put(RESPONSE_TOPIC_SUFFIX, responseTopicSuffix);
-        config.put("server.servelet.context-path",this.connectionId);
-        config.put("server.port",webPort);
-        return config;
-    }
-
     @Override
     public void stop() {
         //deregister this from Manager
         RESTContextManager.getInstance().deregisterConnector(this.connectionId);
+        log.trace("Connector for connection {} is deregistered",this.connectionId);
     }
 
     @Override

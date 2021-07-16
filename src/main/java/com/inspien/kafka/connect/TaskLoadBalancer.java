@@ -1,5 +1,6 @@
 package com.inspien.kafka.connect;
 
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -16,11 +17,11 @@ import lombok.extern.slf4j.Slf4j;
  * TaskLoadBalancer subscribes task's load change event and finds appropriate task to take the load.
  */
 @Slf4j
-public class TaskLoadBalancer implements ILoadBalancer<RESTInputSourceTask>{
+public class TaskLoadBalancer implements ILoadBalancer<RESTInputSourceTask>, Closeable{
 
 
     private HashMap<RESTInputSourceTask, Integer> tasks;
-    private String name;
+    private String connectionId;
     private RESTInputSourceTask targetTask;
 
     /**
@@ -28,10 +29,10 @@ public class TaskLoadBalancer implements ILoadBalancer<RESTInputSourceTask>{
      * @param config configuration of the load balancer. Connector's config could be directly passed.
      */
     public TaskLoadBalancer(AbstractConfig config){
-        this.name = config.getString(RESTSyncConnector.CONNECTION_ID);
+        this.connectionId = config.getString(RESTSyncConnector.CONNECTION_ID);
         this.tasks = new HashMap<>();
-        log.info("Load Balancer for {} is activated",this.name);
-        RESTContextManager.getInstance().registerLB(this.name, this);
+        log.info("Load Balancer for {} is activated",this.connectionId);
+        RESTContextManager.getInstance().registerLB(this.connectionId, this);
     }
 
     
@@ -87,5 +88,11 @@ public class TaskLoadBalancer implements ILoadBalancer<RESTInputSourceTask>{
         }
         this.tasks.put(member, newscore);
         if (this.tasks.get(this.targetTask) > newscore) this.targetTask = member;
+    }
+
+
+    @Override
+    public void close() {
+        log.info("loadbalancer for {} is closed",this.connectionId);
     }    
 }

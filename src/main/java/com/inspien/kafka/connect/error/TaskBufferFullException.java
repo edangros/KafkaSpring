@@ -1,4 +1,4 @@
-package com.inspien.kafka.connect;
+package com.inspien.kafka.connect.error;
 
 public class TaskBufferFullException extends RuntimeException{
     public TaskBufferFullException(String message){
