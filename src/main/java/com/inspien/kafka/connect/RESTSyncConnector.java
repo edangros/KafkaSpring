@@ -23,14 +23,16 @@ import org.apache.kafka.common.config.ConfigDef.Type;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.utils.AppInfoParser;
 import org.apache.kafka.connect.connector.Task;
+import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.DataException;
+import org.apache.kafka.connect.json.DecimalFormat;
+import org.apache.kafka.connect.json.JsonConverter;
+import org.apache.kafka.connect.json.JsonConverterConfig;
 import org.apache.kafka.connect.source.SourceConnector;
-import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.context.ConfigurableApplicationContext;
+import org.apache.kafka.connect.transforms.Transformation;
 
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -40,15 +42,18 @@ import java.util.Map;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.inspien.kafka.connect.spring.RESTApplication;
 
 /**
- * Very simple connector that works with the console. This connector supports both source and
- * sink modes via its 'mode' setting.
+ * Connector to connect Rest endpoint to kafka, with synchronized communication.
+ * Could be parallelized as much as system allows, using simple loadbalancer which controlles the load of each tasks to process message.
+ * This parallelization allows complex transform performed via {@link Transformation} API, but heavy transformation and high {@code tasks.max} is not recommended.
  */
+@Slf4j
 public class RESTSyncConnector extends SourceConnector {
 
     public static final String CONNECTION_ID = "synk.name";
+    public static final String CONNECTION_ID_DOC = "Connection ID for this connection. must be unique for all connection.\n"+
+                                                    "this used to generate Topic, consumer, and consumer group so must not have any character's kafka support.";
     public static final String BOOTSTRAP_SERVER = "synk.bootstrap-servers";
     public static final String REQUEST_TOPIC_SUFFIX = "synk.suffix.request-topic";
     public static final String RESPONSE_TOPIC_SUFFIX = "synk.suffix.response-topic";
@@ -72,7 +77,7 @@ public class RESTSyncConnector extends SourceConnector {
 
 
     private static final ConfigDef CONFIG_DEF = new ConfigDef()
-        .define(CONNECTION_ID, Type.STRING, null, Importance.HIGH, "Connection ID for this connection. must be unique for all connection.")
+        .define(CONNECTION_ID, Type.STRING, null, Importance.HIGH, CONNECTION_ID_DOC)
         .define(BOOTSTRAP_SERVER, Type.STRING, "localhost:9092", Importance.HIGH, "Bootstrap server of response topic. COULD BE DIFFERENT FROM KAFKA CONNECT's BOOTSTRAPs.")
         .define(REQUEST_TOPIC_SUFFIX, Type.STRING, null, Importance.MEDIUM, "The suffix of request topic")
         .define(RESPONSE_TOPIC_SUFFIX, Type.STRING, null, Importance.MEDIUM, "The suffix of response topic")
@@ -84,18 +89,14 @@ public class RESTSyncConnector extends SourceConnector {
         .define(LOADBALANCER_SCORING, Type.STRING, null, Importance.LOW, LOADBALANCER_SCORING_DOC);
 
     private String connectionId;
-    private TaskLoadBalancer loadBalancer;
     private String lbScoringMethod;
-
-    private ConfigurableApplicationContext webContext;
     private String webRequestSchemaPolicy;
     private String kafkaRequestSchemaPolicy;
     private String kafkaResponseSchemaPolicy;
     private String requestTopicSuffix;
     private String responseTopicSuffix;
-    private String consumerSuffix;
-    private String consumerGroupSuffix;
     private int webPort;
+    private JsonConverter converter;
     @Override
     public String version() {
         return AppInfoParser.getVersion();
@@ -107,14 +108,18 @@ public class RESTSyncConnector extends SourceConnector {
         this.connectionId = parsedConfig.getString(CONNECTION_ID);
         this.requestTopicSuffix = parsedConfig.getString(REQUEST_TOPIC_SUFFIX);
         this.responseTopicSuffix = parsedConfig.getString(RESPONSE_TOPIC_SUFFIX);
-        this.consumerSuffix = parsedConfig.getString(CONSUMER_SUFFIX);
-        this.consumerGroupSuffix = parsedConfig.getString(CONSUMER_GROUP_SUFFIX);
         this.lbScoringMethod = parsedConfig.getString(LOADBALANCER_SCORING);
         this.webRequestSchemaPolicy = parsedConfig.getString(SCHEMAPOLICY_WEBREQUEST);
         this.kafkaRequestSchemaPolicy = parsedConfig.getString(SCHEMAPOLICY_KAFKAREQUEST);
-        
-        //validate settings
+        //generate converter
+        Map<String,Object> converterProps = new HashMap<>();
+        converterProps.put(JsonConverterConfig.DECIMAL_FORMAT_CONFIG, DecimalFormat.BASE64.name());
+        converterProps.put(JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, true);
+        converterProps.putAll(parsedConfig.originalsWithPrefix("converter."));
+        converter = new JsonConverter();
+        converter.configure(converterProps);
 
+        //validate settings
         //schema validation
         try{if(validateSchemaPolicy(kafkaRequestSchemaPolicy))
                 throw new ConfigException("Wrong value for "+SCHEMAPOLICY_KAFKAREQUEST+
@@ -144,14 +149,14 @@ public class RESTSyncConnector extends SourceConnector {
             throw new ConfigException(String.format("ConnectionId %s is already in use.", this.connectionId));
 
         try{
-            //generate LB
-            loadBalancer = new TaskLoadBalancer(parsedConfig);
-            RESTContextManager.getInstance().registerLB(this.connectionId, loadBalancer);
+            //register this
+            log.info("registering connector for connection {}...",connectionId);
+            RESTContextManager.getInstance().registerConnector(connectionId, parsedConfig);
+            //loadbalancer and template will be generated here
         }
         catch(Exception e){
-            //remove contexts generated by this
+            //if register failed, remove contexts generated by this
             RESTContextManager.getInstance().deregisterConnector(this.connectionId);
-            if (webContext != null) webContext.close();
             throw new ConfigException(String.format("Connection %s failed due to error",this.connectionId)+e.getMessage());
         }
         
@@ -163,59 +168,10 @@ public class RESTSyncConnector extends SourceConnector {
         if (schemaPolicies.contains(schemaPolicy)) return true;
         ObjectMapper mapper = new ObjectMapper();
         JsonNode schemaNode = mapper.readTree(schemaPolicy); //JsonProcessingException could be thrown here
-        return true;
+        Schema schema = converter.asConnectSchema(schemaNode); //DataException could be thrown here
+        return schema != null;
     }
 
-    private boolean validateJSONSchema(JsonNode node) throws DataException{
-
-        JsonNode schemaTypeNode = node.get("type");
-        if (schemaTypeNode == null || !schemaTypeNode.isTextual())
-            throw new DataException("Schema must contain 'type' field");
-
-        switch (schemaTypeNode.textValue()) {
-            case "boolean":
-            case "int8":
-            case "int16":
-            case "int32":
-            case "int64":
-            case "float":
-            case "double":
-            case "bytes":
-            case "string":
-                break;
-            case "array":
-                JsonNode elemSchema = node.get("items");
-                if (elemSchema == null || elemSchema.isNull())
-                    throw new DataException("Array schema did not specify the element type");
-                if (!validateJSONSchema(elemSchema)) break;
-                break;
-            case "map":
-                JsonNode keySchema = node.get("keys");
-                if (keySchema == null)
-                    throw new DataException("Map schema did not specify the key type");
-                if (!validateJSONSchema(keySchema)) throw new DataException("Invalid JSON Schema");
-                JsonNode valueSchema = node.get("values");
-                if (valueSchema == null)
-                    throw new DataException("Map schema did not specify the value type");
-                    if (!validateJSONSchema(valueSchema)) throw new DataException("Invalid JSON Schema");
-                break;
-            case "struct":
-                JsonNode fields = node.get("fields");
-                if (fields == null || !fields.isArray())
-                    throw new DataException("Struct schema's \"fields\" argument is not an array.");
-                for (JsonNode field : fields) {
-                    JsonNode jsonFieldName = field.get("field");
-                    if (jsonFieldName == null || !jsonFieldName.isTextual())
-                        throw new DataException("Struct schema's field name not specified properly");
-                    if (!validateJSONSchema(field)) throw new DataException("Invalid JSON Schema");
-                }
-                break;
-            default:
-                throw new DataException("Unknown schema type: " + schemaTypeNode.textValue());
-        }
-        //if reached here without any exception, this schema is valid.
-        return true;
-    }
     @Override
     public Class<? extends Task> taskClass() {
         return RESTInputSourceTask.class;
@@ -224,12 +180,17 @@ public class RESTSyncConnector extends SourceConnector {
     public static final String TASK_INDEX = "synk.task.id";
     @Override
     public List<Map<String, String>> taskConfigs(int maxTasks) {
+        //#####################################################
+        // ##### IMPORTANT PART OF KAFKA CONNECT RUNTIME #####
+        //#####################################################
+        //NOTE the number of tasks is not determined by maxTasks value in config, but the size of the list we return in this function.
         ArrayList<Map<String, String>> configs = new ArrayList<>();
+        //we'll generate tasks by number of maxTasks.
         for(int i=0; i<maxTasks; i++){
             Map<String,String> config = new HashMap<>();
             config.put(TASK_INDEX, String.valueOf(i)); //task id for log
-            config.put(CONNECTION_ID, connectionId);
-            config.put(LOADBALANCER_SCORING, lbScoringMethod);
+            config.put(CONNECTION_ID, connectionId); //They might have to refer the registry
+            config.put(LOADBALANCER_SCORING, lbScoringMethod); //Loadbalancer scoring method (by number? by bytes?)
             configs.add(config);
         }
         return configs;
@@ -247,7 +208,8 @@ public class RESTSyncConnector extends SourceConnector {
 
     @Override
     public void stop() {
-        // Nothing to do since FileStreamSourceConnector has no background monitoring.
+        //deregister this from Manager
+        RESTContextManager.getInstance().deregisterConnector(this.connectionId);
     }
 
     @Override
