@@ -1,19 +1,4 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+
 package com.inspien.kafka.connect;
 
 import org.apache.kafka.common.config.AbstractConfig;
@@ -29,6 +14,7 @@ import org.apache.kafka.connect.json.DecimalFormat;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.json.JsonConverterConfig;
 import org.apache.kafka.connect.source.SourceConnector;
+import org.apache.kafka.connect.storage.ConverterConfig;
 import org.apache.kafka.connect.transforms.Transformation;
 
 import lombok.extern.slf4j.Slf4j;
@@ -111,13 +97,14 @@ public class RESTSyncConnector extends SourceConnector {
         Map<String,Object> converterProps = new HashMap<>();
         converterProps.put(JsonConverterConfig.DECIMAL_FORMAT_CONFIG, DecimalFormat.BASE64.name());
         converterProps.put(JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, true);
+        converterProps.put(ConverterConfig.TYPE_CONFIG, "value");
         converterProps.putAll(parsedConfig.originalsWithPrefix("converter."));
         converter = new JsonConverter();
         converter.configure(converterProps);
 
         //validate settings
         //schema validation
-        try{if(validateSchemaPolicy(kafkaRequestSchemaPolicy))
+        try{if(!validateSchemaPolicy(kafkaRequestSchemaPolicy))
                 throw new ConfigException("Wrong value for "+SCHEMAPOLICY_KAFKAREQUEST+
                     ": Schema policy must be one of ONCE, IGNORE. NONE or you have to provide JSONSchema");}
         catch(JsonProcessingException e){ throw new ConfigException("Wrong value for "+SCHEMAPOLICY_KAFKAREQUEST+
@@ -125,7 +112,7 @@ public class RESTSyncConnector extends SourceConnector {
         catch(DataException e){ throw new ConfigException("Wrong value for "+SCHEMAPOLICY_KAFKAREQUEST+
                 ": Provided schema has syntex error(s)");}
 
-        try{if(validateSchemaPolicy(kafkaResponseSchemaPolicy))
+        try{if(!validateSchemaPolicy(kafkaResponseSchemaPolicy))
                 throw new ConfigException("Wrong value fo r"+SCHEMAPOLICY_KAFKARESPONSE+
                     ": Schema policy must be one of ONCE, IGNORE. NONE or you have to provide JSONSchema");}
         catch(JsonProcessingException e){ throw new ConfigException("Wrong value for "+SCHEMAPOLICY_KAFKARESPONSE+
@@ -133,7 +120,7 @@ public class RESTSyncConnector extends SourceConnector {
         catch(DataException e){ throw new ConfigException("Wrong value for "+SCHEMAPOLICY_KAFKARESPONSE+
                 ": Provided schema has syntex error(s)");}
 
-        try{if(validateSchemaPolicy(webRequestSchemaPolicy))
+        try{if(!validateSchemaPolicy(webRequestSchemaPolicy))
                 throw new ConfigException("Wrong value for "+SCHEMAPOLICY_WEBREQUEST+
                     ": Schema policy must be one of ONCE, IGNORE. NONE or you have to provide JSONSchema");}  
         catch(JsonProcessingException e){ throw new ConfigException("Wrong value for"+SCHEMAPOLICY_WEBREQUEST+
@@ -197,7 +184,7 @@ public class RESTSyncConnector extends SourceConnector {
     public void stop() {
         //deregister this from Manager
         RESTContextManager.getInstance().deregisterConnector(this.connectionId);
-        log.trace("Connector for connection {} is deregistered",this.connectionId);
+        log.info("Connector for connection {} is deregistered",this.connectionId);
     }
 
     @Override

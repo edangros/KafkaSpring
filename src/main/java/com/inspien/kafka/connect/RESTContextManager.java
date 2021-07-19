@@ -10,6 +10,7 @@ import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.protocol.types.SchemaException;
 import org.apache.kafka.connect.data.Schema;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
@@ -37,6 +38,7 @@ public class RESTContextManager {
     public enum SchemaType{
         REQUEST, RESPONSE
     }
+    
     private static RESTContextManager instance = new RESTContextManager();
     private Map<String,ConnectionContext> contexts;
     private ConfigurableApplicationContext webContext;
@@ -115,10 +117,11 @@ public class RESTContextManager {
      */
     public void registerConnector(String key, AbstractConfig config){
         if (!(this.contexts.keySet().contains(key))){
-            log.trace("connector {} is registered with following settings: {}",key,config.toString());
+            log.info("connector {} is registered with following settings: {}",key,config.toString());
             this.contexts.put(key, new ConnectionContext());
         } 
         this.getConnectorContext(key).setConfig(config);
+        this.registerLB(key, new TaskLoadBalancer(config));
         launchWebAppIfNotLaunched();
         generateTemplateIfNotExist(key);
     }
@@ -160,8 +163,12 @@ public class RESTContextManager {
                 port = SocketUtils.findAvailableTcpPort(port);
                 log.warn("Nearleast port {} is selected for the connection. This port may be blocked by firewall.");
             }
-            this.webContext = new SpringApplicationBuilder(RESTApplication.class).properties(String.format("server.port=%d",port))
-                    .run();
+            this.webContext = new SpringApplicationBuilder(RESTApplication.class)
+                                    .web(WebApplicationType.SERVLET)
+                                    .logStartupInfo(true)
+                                    .properties(String.format("server.address=%s",Utils.getLocalIp()))
+                                    .properties(String.format("server.port=%d",port))
+                                    .run();
             log.info("Web server launched at port {}",port);
             return;
         }
@@ -186,7 +193,9 @@ public class RESTContextManager {
      */
     private ReplyingKafkaConnectTemplate generateTemplateIfNotExist(String key){
         //if exist, return exist refernece.
-        if (this.getTemplate(key) != null) return this.getTemplate(key);
+        if (this.getTemplate(key) != null){
+            return this.getTemplate(key);
+        }
 
         //Set Consumer Configs
         String connectionId =  this.getConfigFieldString(key, RESTSyncConnector.CONNECTION_ID);
@@ -213,6 +222,7 @@ public class RESTContextManager {
         //generate template and register it
         ReplyingKafkaConnectTemplate template =  new ReplyingKafkaConnectTemplate(container, connectionId);
         this.getConnectorContext(key).setTemplate(template);
+        template.start();
         return template;
     }
 
@@ -249,9 +259,8 @@ public class RESTContextManager {
         return this.webContext != null;
     }
 
-
     public String getConfigFieldString(String key, String field){
         return this.getConnectorConfig(key).getString(field);
     }
-    
+
 }

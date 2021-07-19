@@ -1,1 +1,5 @@
 
+logging:
+  file:
+    path: /home/opc/kafka/connect-logs
+    name: connect-spring.log

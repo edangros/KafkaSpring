@@ -44,7 +44,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ReplyingKafkaConnectTemplate implements BatchMessageListener<byte[], byte[]> {
     
-    private static final long DEFAULT_REPLY_TIMEOUT = 5000L;
+    private static final long DEFAULT_REPLY_TIMEOUT = 20000L;
 
     private final GenericMessageListenerContainer<byte[], byte[]> replyContainer;
 
@@ -134,7 +134,7 @@ public class ReplyingKafkaConnectTemplate implements BatchMessageListener<byte[]
         CorrelationKey correlationId = createCorrelationId(record);
         Assert.notNull(correlationId, "the created 'correlationId' cannot be null");
         record.headers().add(KafkaHeaders.CORRELATION_ID,
-                            correlationId.getCorrelationId(),
+                            new String(correlationId.getCorrelationId()),
                             Schema.STRING_SCHEMA);
         if (log.isDebugEnabled()) {
             log.debug("Sending: " + record + " with correlationId: " + correlationId);
@@ -144,7 +144,7 @@ public class ReplyingKafkaConnectTemplate implements BatchMessageListener<byte[]
         
         //access to lb, then get best task
         RESTInputSourceTask task = RESTContextManager.getInstance().taskLoadBalancer(connectionID).getAppropriate();
-
+        log.info("task {} is selected as the sender of this message", task.getName());
         try {
             task.put(record);
         } catch (Exception e) {
@@ -245,7 +245,7 @@ public class ReplyingKafkaConnectTemplate implements BatchMessageListener<byte[]
                 timestamp,
                 record.timestampType(),
                 headers);
-        log.trace("{} Applying transformations to record in topic '{}' partition {} at offset {} and timestamp {} with key {} and value {}",
+        log.info("{} Applying transformations to record in topic '{}' partition {} at offset {} and timestamp {} with key {} and value {}",
                 this, record.topic(), record.partition(), record.offset(), timestamp, keyAndSchema.value(), valueAndSchema.value());
 
         // Error reporting will need to correlate each sink record with the original consumer record

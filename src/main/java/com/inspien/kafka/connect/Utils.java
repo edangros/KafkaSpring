@@ -7,6 +7,8 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.UnknownHostException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,7 +22,10 @@ import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.json.JsonConverter;
+import org.apache.kafka.connect.json.JsonConverterConfig;
 import org.apache.kafka.connect.source.SourceRecord;
+import org.apache.kafka.connect.storage.ConverterConfig;
+import org.apache.kafka.connect.storage.ConverterType;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,6 +37,12 @@ public class Utils {
 	public static final JsonConverter CONVERTER = new JsonConverter();
 	public static final ObjectMapper MAPPER = new ObjectMapper();
 	public static final JsonNodeFactory NODE_FACTORY = JsonNodeFactory.withExactBigDecimals(true);
+	static {
+		final Map<String,Object> converterporps = new HashMap<>();
+		converterporps.put(ConverterConfig.TYPE_CONFIG, "value");
+		converterporps.put(JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, false);
+		CONVERTER.configure(converterporps);
+	}
     /**
      * Check if the port is in use
      * @param port target port number
@@ -43,10 +54,10 @@ public class Utils {
             // otherwise the code will not work correctly on that platform          
             serverSocket.setReuseAddress(false);
             serverSocket.bind(new InetSocketAddress(InetAddress.getByName("localhost"), port), 1);
-            return true;
         } catch (Exception ex) {
             return false;
         }
+		return true;
     }
 	/**
 	 * get local ip, which will be used as partition
@@ -76,7 +87,6 @@ public class Utils {
 			log.warn("While autogenerating schema, null is detected. Cannot assume schema so string is taken");
 			return Schema.STRING_SCHEMA;
 		}
-
 		switch (json.getNodeType()){
 			//if array, get first item and generate array schema
 			case ARRAY:
@@ -126,6 +136,7 @@ public class Utils {
 	 */
 	public static SourceRecord convertJSONtoConnectRecord(JsonNode json, String registryId){
 
+		log.info("{} : Convert {} to Connect data",registryId, json);
 		JsonNode msgSchema = null;
 
 		//check if Schema-Payload type(Kafka Connect Message type) request arrived
@@ -134,6 +145,7 @@ public class Utils {
 			msgSchema = json.get("schema");
 			json = json.get("payload");
 		}
+
 		//get config from registry
 		Schema schema = RESTContextManager.getInstance().getSchema(registryId, SchemaType.REQUEST);
 
@@ -153,7 +165,7 @@ public class Utils {
 				break;
 			//Ignore schema but attach schema for further process
 			case "IGNORE":
-				if (msgSchema == null) schema = CONVERTER.asConnectSchema(msgSchema);
+				if (msgSchema != null) schema = CONVERTER.asConnectSchema(msgSchema);
 				else schema = Utils.buildSchemaFromJSON(json);
 				break;
 			//do not attach schema
@@ -189,6 +201,7 @@ public class Utils {
 		);
 	}
 
+
 	/**
 	 * Convert JSON Message with provided {@link Schema}.
 	 * @param json JSON message
@@ -208,7 +221,9 @@ public class Utils {
 
 		//validate schema
 		ConnectSchema cSchema = (ConnectSchema)schema;
-		cSchema.validateValue(value.value());
+		// TODO Connectschema not supports validation. Implementation of field-by-field validation is needed.
+		// Maybe There are good sources in Kafka Connect Transformation or Schema Registry.
+		// cSchema.validateValue(value.value());
 		//now we have schema
 		return new SourceRecord(
 			Collections.singletonMap("Sender", Utils.getLocalIp()),//partition is uri
@@ -218,5 +233,4 @@ public class Utils {
 			value.value()
 		);
 	}
-
 }

@@ -31,6 +31,8 @@ public class RESTInputSourceTask extends SourceTask implements ILoadBalancable {
     private int bufferSize;
     private String connectionId;
     private String name;
+
+    public String getName(){return this.name;}
     private TaskLoadBalancer lb;
     private CountingOption countOption;
 
@@ -90,7 +92,7 @@ public class RESTInputSourceTask extends SourceTask implements ILoadBalancable {
         //For LB access, send single message per single buffer polling.
         SourceRecord record = this.buffer.poll();
         if (record != null){
-            log.trace("task {} is polling que", this.name);
+            log.info("task {} is polling que", this.name);
             records.add(record);
             this.bufferCnt -= 1;
             this.bufferSize -= record.toString().getBytes().length;
@@ -100,7 +102,7 @@ public class RESTInputSourceTask extends SourceTask implements ILoadBalancable {
 
     @Override
     public void stop() {
-        log.trace("{} is Stopping",this.name);
+        log.info("{} is Stopping",this.name);
         synchronized (this) {
             // deregister this from lb
             this.lb.deregister(this);
@@ -114,12 +116,13 @@ public class RESTInputSourceTask extends SourceTask implements ILoadBalancable {
                 "%s stacks messages over 1GB(current usage : %d). Cannot handle any more message.",
                 this.name, this.bufferSize));
         }
+        this.buffer.offer(record);
         this.bufferCnt += 1;
         this.bufferSize += record.toString().getBytes().length;
     }
 
     @Override
-    public synchronized int loadScore() {
+    public int loadScore() {
         switch(this.countOption){
             case BY_MSG_COUNT:
                 return this.bufferCnt;
