@@ -35,10 +35,10 @@ dependencies {
     testImplementation 'junit:junit:4.13.1'
 
     // https://mvnrepository.com/artifact/org.apache.kafka/
-    compileOnly group: 'org.apache.kafka', name: 'connect-runtime', version: '2.8.0'
-    compileOnly group: 'org.apache.kafka', name: 'connect-api', version: '2.8.0'
-    compileOnly group: 'org.apache.kafka', name: 'kafka-clients', version: '2.8.0'
-    compileOnly group: 'org.apache.kafka', name: 'connect-transforms', version: '2.8.0'
+    implementation group: 'org.apache.kafka', name: 'connect-runtime', version: '2.8.0'
+    implementation group: 'org.apache.kafka', name: 'connect-api', version: '2.8.0'
+    implementation group: 'org.apache.kafka', name: 'kafka-clients', version: '2.8.0'
+    implementation group: 'org.apache.kafka', name: 'connect-transforms', version: '2.8.0'
 }
 distributions {
     main {
