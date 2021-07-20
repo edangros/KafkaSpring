@@ -7,6 +7,7 @@ import java.util.Map;
 
 import com.inspien.kafka.connect.error.TaskBufferFullException;
 
+import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
 import org.apache.tomcat.util.collections.SynchronizedQueue;
@@ -62,7 +63,7 @@ public class RESTInputSourceTask extends SourceTask implements ILoadBalancable {
 
     @Override
     public void start(Map<String, String> props) {
-        connectionId = props.get(RESTSyncConnector.CONNECTION_ID);
+        connectionId = props.get(ConnectorConfig.NAME_CONFIG);
         this.name = connectionId + "_Task" + props.get(RESTSyncConnector.TASK_INDEX);
         //set count option
         switch(props.get(RESTSyncConnector.LOADBALANCER_SCORING)){

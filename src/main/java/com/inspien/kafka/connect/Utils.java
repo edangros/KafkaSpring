@@ -23,9 +23,9 @@ import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.json.JsonConverterConfig;
+import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.storage.ConverterConfig;
-import org.apache.kafka.connect.storage.ConverterType;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -188,7 +188,7 @@ public class Utils {
 	 * @return converted JSON message.
 	 */
 	private static SourceRecord convertJSONSchemaless(JsonNode json, String registryId){
-		String topic = RESTContextManager.getInstance().getConfigFieldString(registryId, RESTSyncConnector.CONNECTION_ID)+
+		String topic = RESTContextManager.getInstance().getConfigFieldString(registryId, ConnectorConfig.NAME_CONFIG)+
 						RESTContextManager.getInstance().getConfigFieldString(registryId, RESTSyncConnector.REQUEST_TOPIC_SUFFIX);
 		SchemaAndValue value = CONVERTER.toConnectData(topic, json.toString().getBytes());
 		//now we have schema
@@ -211,7 +211,7 @@ public class Utils {
 	 * @throws DataException If provided message is not fit to schema. internally uses {@link ConnectSchema}'s validation method.
 	 */
 	private static SourceRecord convertJSONWithSchema(JsonNode json, Schema schema, String registryId) throws DataException{
-		String topic = RESTContextManager.getInstance().getConfigFieldString(registryId, RESTSyncConnector.CONNECTION_ID)+
+		String topic = RESTContextManager.getInstance().getConfigFieldString(registryId, ConnectorConfig.NAME_CONFIG)+
 						RESTContextManager.getInstance().getConfigFieldString(registryId, RESTSyncConnector.REQUEST_TOPIC_SUFFIX);
 		//generate value as struct
 		ObjectNode root = NODE_FACTORY.objectNode();

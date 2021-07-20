@@ -7,6 +7,7 @@ import java.util.HashMap;
 import com.inspien.kafka.connect.error.NoTaskException;
 
 import org.apache.kafka.common.config.AbstractConfig;
+import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.source.SourceTask;
 
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +30,7 @@ public class TaskLoadBalancer implements ILoadBalancer<RESTInputSourceTask>, Clo
      * @param config configuration of the load balancer. Connector's config could be directly passed.
      */
     public TaskLoadBalancer(AbstractConfig config){
-        this.connectionId = config.getString(RESTSyncConnector.CONNECTION_ID);
+        this.connectionId = config.getString(ConnectorConfig.NAME_CONFIG);
         this.tasks = new HashMap<>();
         log.info("Load Balancer for {} is activated",this.connectionId);
         RESTContextManager.getInstance().registerLB(this.connectionId, this);

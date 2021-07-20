@@ -9,6 +9,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.protocol.types.SchemaException;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -198,7 +199,7 @@ public class RESTContextManager {
         }
 
         //Set Consumer Configs
-        String connectionId =  this.getConfigFieldString(key, RESTSyncConnector.CONNECTION_ID);
+        String connectionId =  this.getConfigFieldString(key, ConnectorConfig.NAME_CONFIG);
         String topic = connectionId + this.getConfigFieldString(key, RESTSyncConnector.RESPONSE_TOPIC_SUFFIX);
         String consumerGroup = connectionId + this.getConfigFieldString(key, RESTSyncConnector.CONSUMER_GROUP_SUFFIX) +
                                 Utils.getLocalIp();

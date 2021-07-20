@@ -13,6 +13,7 @@ import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.json.DecimalFormat;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.json.JsonConverterConfig;
+import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.source.SourceConnector;
 import org.apache.kafka.connect.storage.ConverterConfig;
 import org.apache.kafka.connect.transforms.Transformation;
@@ -37,9 +38,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @Slf4j
 public class RESTSyncConnector extends SourceConnector {
 
-    public static final String CONNECTION_ID = "synk.name";
-    public static final String CONNECTION_ID_DOC = "Connection ID for this connection. must be unique for all connection.\n"+
-                                                    "this used to generate Topic, consumer, and consumer group so must not have any character's kafka support.";
     public static final String BOOTSTRAP_SERVER = "synk.bootstrap-servers";
     public static final String REQUEST_TOPIC_SUFFIX = "synk.suffix.request-topic";
     public static final String RESPONSE_TOPIC_SUFFIX = "synk.suffix.response-topic";
@@ -63,7 +61,6 @@ public class RESTSyncConnector extends SourceConnector {
 
 
     private static final ConfigDef CONFIG_DEF = new ConfigDef()
-        .define(CONNECTION_ID, Type.STRING, null, Importance.HIGH, CONNECTION_ID_DOC)
         .define(BOOTSTRAP_SERVER, Type.STRING, "localhost:9092", Importance.HIGH, "Bootstrap server of response topic. COULD BE DIFFERENT FROM KAFKA CONNECT's BOOTSTRAPs.")
         .define(REQUEST_TOPIC_SUFFIX, Type.STRING, null, Importance.MEDIUM, "The suffix of request topic")
         .define(RESPONSE_TOPIC_SUFFIX, Type.STRING, null, Importance.MEDIUM, "The suffix of response topic")
@@ -88,7 +85,7 @@ public class RESTSyncConnector extends SourceConnector {
     @Override
     public void start(Map<String, String> props) {
         AbstractConfig parsedConfig = new AbstractConfig(CONFIG_DEF, props);
-        this.connectionId = parsedConfig.getString(CONNECTION_ID);
+        this.connectionId = parsedConfig.getString(ConnectorConfig.NAME_CONFIG);
         this.lbScoringMethod = parsedConfig.getString(LOADBALANCER_SCORING);
         this.webRequestSchemaPolicy = parsedConfig.getString(SCHEMAPOLICY_WEBREQUEST);
         this.kafkaRequestSchemaPolicy = parsedConfig.getString(SCHEMAPOLICY_KAFKAREQUEST);
@@ -172,7 +169,7 @@ public class RESTSyncConnector extends SourceConnector {
         for(int i=0; i<maxTasks; i++){
             Map<String,String> config = new HashMap<>();
             config.put(TASK_INDEX, String.valueOf(i)); //task id for log
-            config.put(CONNECTION_ID, connectionId); //They might have to refer the registry
+            config.put(ConnectorConfig.NAME_CONFIG, connectionId); //They might have to refer the registry
             config.put(LOADBALANCER_SCORING, lbScoringMethod); //Loadbalancer scoring method (by number? by bytes?)
             configs.add(config);
         }
