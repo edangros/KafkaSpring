@@ -1,0 +1,82 @@
+package com.inspien.kafka.connect.spring;
+
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.inspien.kafka.connect.Utils;
+
+import org.apache.kafka.connect.data.ConnectSchema;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaAndValue;
+import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.DataException;
+import org.junit.Test;
+import org.springframework.util.Assert;
+
+public class ConversionTest{
+    @Test
+    public void generateSchemaFromJSON(){
+        byte[] structJson = "{ \"field1\": true, \"field2\": \"string\" }".getBytes();
+        Schema expectedSchema;
+        try{
+            expectedSchema = Utils.buildSchemaFromJSON(Utils.MAPPER.readTree(structJson));
+        }
+        catch(Exception e){
+            assertTrue(false);
+            return;
+        }
+        Struct expected;
+        try{
+            expected = new Struct(expectedSchema).put("field1", true).put("field2", "string");
+        }
+        catch(DataException e){
+            assertTrue(String.format("%s occured\n[[Schema]]\n%s",e.toString(),Utils.CONVERTER.asJsonSchema(expectedSchema).toString()),false);
+            return;
+        }
+        SchemaAndValue converted = Utils.CONVERTER.toConnectData("", structJson);
+        assertEquals(expected, converted.value());
+    }
+    /*
+    @Test
+    public void schemaGenerationTest(){
+        JsonNode node ;
+        String jsonString;
+        try{
+            jsonString = new String(Files.readAllBytes(Paths.get("C:\\Users\\redsu\\Documents\\VSCode\\Projects\\KafkaSpring\\testresources\\toKafka.json")));
+        }
+        catch(IOException e){
+            Assert.notNull(null,"nofile");
+            return;
+        }
+
+        try{
+            node = Utils.MAPPER.readTree(jsonString);
+        }
+        catch(JsonProcessingException e){
+            node = Utils.NODE_FACTORY.textNode("");
+        }
+        Utils.CONVERTER.asJsonSchema(Utils.buildSchemaFromJSON(node));
+
+        SchemaAndValue value = Utils.CONVERTER.toConnectData("", jsonString.getBytes());
+
+        value.value()
+        ConnectSchema schema = (ConnectSchema) Utils.buildSchemaFromJSON(node);
+        boolean okay = true;
+        try{
+            schema.validateValue(value.value());
+        }
+        catch(DataException e){
+            okay = false;
+        }
+        
+        Assert.isTrue(okay, String.format("generated schema does not fit to message:\n[[Schema]]\n%s",Utils.CONVERTER.asJsonSchema(schema).toString()));
+    }
+    */
+}

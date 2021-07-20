@@ -1,33 +1,20 @@
 
 package com.inspien.kafka.connect;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
-import com.inspien.kafka.connect.error.TaskBufferFullException;
 
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
-import org.apache.kafka.connect.header.ConnectHeaders;
-import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
-import org.apache.kafka.connect.source.SourceRecord;
-import org.apache.kafka.connect.source.SourceTask;
-import org.apache.tomcat.util.collections.SynchronizedQueue;
 
-import javassist.bytecode.analysis.Util;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * Generate Web Server and then do all the producing stuff using its own message buffer
- * The buffer uses Tomcat's {@link SynchronizedQueue}, which has auto expanding feature.
- */
 
 @Slf4j
 public class MirrorSyncSinkTask extends SinkTask {
@@ -38,7 +25,7 @@ public class MirrorSyncSinkTask extends SinkTask {
 
     @Override
     public String version() {
-        return new RESTSyncConnector().version();
+        return new MirrorSyncSinkConnector().version();
     }
 
     @Override
@@ -46,7 +33,7 @@ public class MirrorSyncSinkTask extends SinkTask {
         this.connectionId = props.get(ConnectorConfig.NAME_CONFIG);
         this.responseTopic = props.get(MirrorSyncSinkConnector.RESPONSE_TOPIC);
         this.producer = MirrorSyncSinkConnector.producerRegistry.get(this.connectionId);
-        log.info("A mirror process for {} is started",this.connectionId);
+        log.info("A mirror process for {} is started : watching topic {}",this.connectionId,this.responseTopic);
     }
 
     @Override
@@ -58,21 +45,19 @@ public class MirrorSyncSinkTask extends SinkTask {
     public void put(Collection<SinkRecord> records) {
         //do nothing. get record, transform it to sourcerecord, then send using producer
         for(SinkRecord record : records){
-            log.info("record {} is mirrored to topic {}",record.toString(),this.responseTopic);
+            log.trace("record {} from connection {} is mirrored to topic {}",record.toString(),this.connectionId,this.responseTopic);
             byte[] key = Utils.CONVERTER.fromConnectData(this.responseTopic, record.keySchema(), record.key());
             byte[] value = Utils.CONVERTER.fromConnectData(this.responseTopic, record.valueSchema(), record.value());
             ProducerRecord<byte[],byte[]> producerRecord = new ProducerRecord<>(this.responseTopic, null, key, value);
             record.headers().forEach(header -> {
-                RecordHeader rHeader = new RecordHeader(header.key(), Utils.CONVERTER.fromConnectHeader(
-                    this.responseTopic, 
-                    header.key(),
-                    header.schema(),
-                    header.value()
-                )
-                );
+                byte[] hValue = Utils.HEADER_CONVERTER.fromConnectHeader(this.responseTopic, header.key(), header.schema(), header.value());
+                RecordHeader rHeader = new RecordHeader(header.key(), hValue);
                 producerRecord.headers().add(rHeader);
+                log.trace("value transfered : {} -> {}", header.value().toString(),new String(rHeader.value()));
             });
+            log.info("mirrored message : {}", producerRecord.toString());
             producer.send(producerRecord);
         }
+        
     }
 }

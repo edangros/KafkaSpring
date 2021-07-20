@@ -10,7 +10,6 @@ import org.apache.kafka.common.utils.AppInfoParser;
 import org.apache.kafka.connect.connector.Task;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.DataException;
-import org.apache.kafka.connect.json.DecimalFormat;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.json.JsonConverterConfig;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
@@ -61,6 +60,7 @@ public class RESTSyncConnector extends SourceConnector {
 
 
     private static final ConfigDef CONFIG_DEF = new ConfigDef()
+        .define(ConnectorConfig.NAME_CONFIG, Type.STRING, null, Importance.HIGH, "")
         .define(BOOTSTRAP_SERVER, Type.STRING, "localhost:9092", Importance.HIGH, "Bootstrap server of response topic. COULD BE DIFFERENT FROM KAFKA CONNECT's BOOTSTRAPs.")
         .define(REQUEST_TOPIC_SUFFIX, Type.STRING, null, Importance.MEDIUM, "The suffix of request topic")
         .define(RESPONSE_TOPIC_SUFFIX, Type.STRING, null, Importance.MEDIUM, "The suffix of response topic")
@@ -69,7 +69,7 @@ public class RESTSyncConnector extends SourceConnector {
         .define(SCHEMAPOLICY_WEBREQUEST, Type.STRING, "IGNORE", Importance.LOW, "Schema Policy of web request. "+SCHEMAPOLICY_DOC)
         .define(SCHEMAPOLICY_KAFKAREQUEST, Type.STRING, "IGNORE", Importance.LOW, "Schema Policy of kafka request. "+SCHEMAPOLICY_DOC)
         .define(SCHEMAPOLICY_KAFKARESPONSE, Type.STRING, "IGNORE", Importance.LOW, "Schema Policy of kafka response. "+SCHEMAPOLICY_DOC)
-        .define(LOADBALANCER_SCORING, Type.STRING, null, Importance.LOW, LOADBALANCER_SCORING_DOC);
+        .define(LOADBALANCER_SCORING, Type.STRING, "BY_CNT", Importance.LOW, LOADBALANCER_SCORING_DOC);
 
     private String connectionId;
     private String lbScoringMethod;
@@ -92,7 +92,6 @@ public class RESTSyncConnector extends SourceConnector {
         this.kafkaResponseSchemaPolicy = parsedConfig.getString(SCHEMAPOLICY_KAFKARESPONSE);
         //generate converter
         Map<String,Object> converterProps = new HashMap<>();
-        converterProps.put(JsonConverterConfig.DECIMAL_FORMAT_CONFIG, DecimalFormat.BASE64.name());
         converterProps.put(JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, true);
         converterProps.put(ConverterConfig.TYPE_CONFIG, "value");
         converterProps.putAll(parsedConfig.originalsWithPrefix("converter."));
@@ -163,7 +162,7 @@ public class RESTSyncConnector extends SourceConnector {
         //#####################################################
         // ##### IMPORTANT PART OF KAFKA CONNECT RUNTIME #####
         //#####################################################
-        //NOTE the number of tasks is not determined by maxTasks value in config, but the size of the list we return in this function.
+        // NOTE the number of tasks is not determined by maxTasks value in config, but the size of the list we return in this function.
         ArrayList<Map<String, String>> configs = new ArrayList<>();
         //we'll generate tasks by number of maxTasks.
         for(int i=0; i<maxTasks; i++){

@@ -39,6 +39,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
 
 
@@ -104,44 +105,57 @@ public class RESTController {
 		for (SettableListenableFuture<SinkRecord> record : futures){
 			replies.add(record.get());
 		}
-		
+		String body = generateResultMessageBody(futures, requestRecords);
+        //records.add(new SourceRecord())
+        return ResponseEntity.ok().body(body);
+	}
+
+	private String generateResultMessageBody(List<SettableListenableFuture<SinkRecord>> futures, List<SourceRecord> requestRecords) throws JsonParseException, InterruptedException, ExecutionException {
 		//generate message body
 		String body = "";
 		//if single message, no list wraps that, just return
 		if(futures.size() == 1){
+			//TODO Connect JsonConverter is not able to generate proper JSON message - have to build it(...)
+			/*
 			try{
 				JsonNode requestNode = Utils.MAPPER.readTree(requestRecords.get(0).value().toString());
-				JsonNode responseNode = Utils.MAPPER.readTree(futures.get(0).get().toString());
+				JsonNode responseNode = Utils.MAPPER.readTree(new String(
+					Utils.CONVERTER.fromConnectData("",futures.get(0).get().valueSchema(),futures.get(0).get().value())));
 				body = pairRequestAndResponse(requestNode, responseNode).toString();
 			}
 			catch(JsonProcessingException e){
-				log.error("Can't handle Response message : {}", futures.get(0).get().toString());
-				body = "Can't handle Response message :"+ futures.get(0).get().toString();
+				log.error("Can't handle Response message : {} \n Cause {}", futures.get(0).get().toString(),e.toString());
+				body = "Can't handle Response message : "+ futures.get(0).get().toString() +" \n Cause "+ e.toString();
 			}
+			*/
+			body = futures.get(0).get().value().toString();
 		}
 		//if listed message, return as list
 		else{
 			ArrayNode rootNode = Utils.NODE_FACTORY.arrayNode();
+			/*
 			for(int i = 0;i<futures.size();i++){
 				try{
 					JsonNode requestNode = Utils.MAPPER.readTree(requestRecords.get(i).value().toString());
-					JsonNode responseNode = Utils.MAPPER.readTree(futures.get(i).get().toString());
+					JsonNode responseNode = Utils.MAPPER.readTree(new String(
+						Utils.CONVERTER.fromConnectData("",futures.get(i).get().valueSchema(),futures.get(i).get().value())));
 					rootNode.add(pairRequestAndResponse(requestNode, responseNode));
+					rootNode.add(Utils.NODE_FACTORY.textNode(futures.get(i).get().toString()));
 				}
 				catch(JsonProcessingException e){
 					log.error("Can't handle Response message : ", futures.get(i).get().toString());
 					//treat string:string
 					TextNode requestNode = Utils.NODE_FACTORY.textNode(requestRecords.get(i).toString());
-					TextNode responseNode = Utils.NODE_FACTORY.textNode(futures.get(i).get().toString());
+					TextNode responseNode = Utils.NODE_FACTORY.textNode(
+						new String (Utils.CONVERTER.fromConnectData("", futures.get(i).get().valueSchema(), futures.get(i).get().value())));
 					rootNode.add(pairRequestAndResponse(requestNode, responseNode));
 				}
 			}
+			*/
 			body = rootNode.toString();
 		}
-        //records.add(new SourceRecord())
-        return ResponseEntity.ok().body(body);
+		return body;
 	}
-
 	/**
 	 * Generate Request-Response pair, which will be used in HTTP response body.
 	 * @param request request JSON message
@@ -166,7 +180,7 @@ public class RESTController {
 		//parse request
 		JsonNode jsonbody;
 		jsonbody = Utils.MAPPER.readTree(request);
-		log.info("successfully parsed request : {}",request);
+		log.trace("successfully parsed request : {}",request);
 		List<JsonNode> messages = new ArrayList<>();
 		//check if multiple messages arrived
 		if (jsonbody.isArray()){

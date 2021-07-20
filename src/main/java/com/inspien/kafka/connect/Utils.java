@@ -26,6 +26,8 @@ import org.apache.kafka.connect.json.JsonConverterConfig;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.storage.ConverterConfig;
+import org.apache.kafka.connect.storage.HeaderConverter;
+import org.apache.kafka.connect.storage.SimpleHeaderConverter;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -35,13 +37,14 @@ public class Utils {
     private Utils(){}
 
 	public static final JsonConverter CONVERTER = new JsonConverter();
+	public static final HeaderConverter HEADER_CONVERTER = new SimpleHeaderConverter();
 	public static final ObjectMapper MAPPER = new ObjectMapper();
 	public static final JsonNodeFactory NODE_FACTORY = JsonNodeFactory.withExactBigDecimals(true);
 	static {
-		final Map<String,Object> converterporps = new HashMap<>();
-		converterporps.put(ConverterConfig.TYPE_CONFIG, "value");
-		converterporps.put(JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, false);
-		CONVERTER.configure(converterporps);
+		final Map<String,Object> converterProps = new HashMap<>();
+		converterProps.put(ConverterConfig.TYPE_CONFIG, "value");
+		converterProps.put(JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, true);
+		CONVERTER.configure(converterProps);
 	}
     /**
      * Check if the port is in use
@@ -49,9 +52,7 @@ public class Utils {
      * @return if port is accessable, return {@code true}. Return {@code false} if the port is in use or locked.
      */
     public static boolean validatePortNumber(int port){
-        try (ServerSocket serverSocket = new ServerSocket()) {
-            // setReuseAddress(false) is required only on OSX, 
-            // otherwise the code will not work correctly on that platform          
+        try (ServerSocket serverSocket = new ServerSocket()) {    
             serverSocket.setReuseAddress(false);
             serverSocket.bind(new InetSocketAddress(InetAddress.getByName("localhost"), port), 1);
         } catch (Exception ex) {

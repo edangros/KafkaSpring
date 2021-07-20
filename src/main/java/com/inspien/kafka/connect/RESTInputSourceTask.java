@@ -7,6 +7,7 @@ import java.util.Map;
 
 import com.inspien.kafka.connect.error.TaskBufferFullException;
 
+import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
@@ -93,11 +94,12 @@ public class RESTInputSourceTask extends SourceTask implements ILoadBalancable {
         //For LB access, send single message per single buffer polling.
         SourceRecord record = this.buffer.poll();
         if (record != null){
-            log.info("task {} is polling que", this.name);
+            log.trace("task {} is polling message {}", this.name,record);
             records.add(record);
             this.bufferCnt -= 1;
             this.bufferSize -= record.toString().getBytes().length;
         }
+        this.lb.updatescore(this, this.loadScore());
         return records;
     }
 
@@ -110,7 +112,7 @@ public class RESTInputSourceTask extends SourceTask implements ILoadBalancable {
         }
     }
 
-    public void put(SourceRecord record){
+    public void put(SourceRecord record) throws InterruptedException{
         if(this.bufferSize>=1024*1024*1024){
             log.error("{} stacks messages over 1GB. Cannot handle any more message.", this.name);
             throw new TaskBufferFullException(String.format(
@@ -120,6 +122,9 @@ public class RESTInputSourceTask extends SourceTask implements ILoadBalancable {
         this.buffer.offer(record);
         this.bufferCnt += 1;
         this.bufferSize += record.toString().getBytes().length;
+        this.lb.updatescore(this, this.loadScore());
+        //TODO must be deleted - LB Test code
+        Thread.sleep(1000);//sleep 1000s
     }
 
     @Override

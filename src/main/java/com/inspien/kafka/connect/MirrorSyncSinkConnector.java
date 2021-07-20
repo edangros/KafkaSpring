@@ -1,13 +1,11 @@
 package com.inspien.kafka.connect;
 
 import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
-import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.utils.AppInfoParser;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.connect.connector.Task;
@@ -30,7 +28,6 @@ import java.util.Map;
 @Slf4j
 public class MirrorSyncSinkConnector extends SinkConnector {
     public static final Map<String,KafkaProducer<byte[],byte[]>> producerRegistry = new HashMap<>();
-    public static final String CONNECTION_ID = "synk.name";
     public static final String CONNECTION_ID_DOC = "Connection ID for this connection. must be unique for all connection.\n"+
                                                     "this used to generate Topic, consumer, and consumer group so must not have any character's kafka support.";
     public static final String BOOTSTRAP_SERVER = "synk.bootstrap-servers";
@@ -39,7 +36,7 @@ public class MirrorSyncSinkConnector extends SinkConnector {
 
 
     private static final ConfigDef CONFIG_DEF = new ConfigDef()
-        .define(CONNECTION_ID, Type.STRING, null, Importance.HIGH, CONNECTION_ID_DOC)
+        .define(ConnectorConfig.NAME_CONFIG, Type.STRING, null, Importance.HIGH, CONNECTION_ID_DOC)
         .define(BOOTSTRAP_SERVER, Type.STRING, "localhost:9092", Importance.HIGH, "Bootstrap server of response topic. COULD BE DIFFERENT FROM KAFKA CONNECT's BOOTSTRAPs.")
         .define(PRODUCER_SUFFIX, Type.STRING, "_mirror", Importance.MEDIUM, "The suffix of producer id")
         .define(RESPONSE_TOPIC, Type.STRING, null, Importance.MEDIUM, "The name of response topic");
@@ -58,7 +55,7 @@ public class MirrorSyncSinkConnector extends SinkConnector {
         this.responseTopic = parsedConfig.getString(RESPONSE_TOPIC);
         Map<String,Object> producerProps = new HashMap<>();
         
-        producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, Utils.join(parsedConfig.getList(BOOTSTRAP_SERVER), ","));
+        producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, parsedConfig.getString(BOOTSTRAP_SERVER));
         producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer");
         producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer");
         // These settings will execute infinite retries on retriable exceptions. They *may* be overridden via configs passed to the worker,
@@ -78,7 +75,7 @@ public class MirrorSyncSinkConnector extends SinkConnector {
 
     @Override
     public Class<? extends Task> taskClass() {
-        return RESTInputSourceTask.class;
+        return MirrorSyncSinkTask.class;
     }
     
     @Override
